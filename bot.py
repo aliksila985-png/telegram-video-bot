@@ -12,48 +12,43 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 user_lang = {}
-mode = {}
 
-# Клавиатура RU
+# меню RU
 def menu_ru():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📥 Скачать видео"), KeyboardButton(text="🎵 Скачать аудио")],
-            [KeyboardButton(text="🎧 Найти музыку")],
             [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="🌍 Язык")]
         ],
         resize_keyboard=True
     )
 
-# Клавиатура EN
+# меню EN
 def menu_en():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📥 Download video"), KeyboardButton(text="🎵 Download audio")],
-            [KeyboardButton(text="🎧 Find music")],
             [KeyboardButton(text="❓ Help"), KeyboardButton(text="🌍 Language")]
         ],
         resize_keyboard=True
     )
 
-# START
+# старт
 @dp.message(CommandStart())
 async def start(message: types.Message):
 
     user_lang[message.from_user.id] = "ru"
 
     text = (
-        "👋 Добро пожаловать!\n\n"
-        "Этот бот умеет:\n\n"
-        "📥 скачивать видео\n"
-        "🎵 скачивать аудио\n"
-        "🎧 искать музыку\n\n"
-        "Поддерживаемые платформы:\n"
+        "👋 Привет!\n\n"
+        "Я помогаю скачивать видео и аудио из популярных платформ.\n\n"
+        "Просто отправь ссылку, и я попробую скачать файл.\n\n"
+        "Работаю с такими сервисами как:\n"
+        "• YouTube (включая Shorts)\n"
         "• TikTok\n"
         "• Instagram\n"
-        "• YouTube (Shorts и длинные видео)\n"
-        "• Twitter/X\n"
-        "• Snapchat"
+        "• Twitter / X\n"
+        "• Snapchat\n"
+        "• Facebook\n\n"
+        "И многими другими платформами."
     )
 
     await message.answer(text, reply_markup=menu_ru())
@@ -62,41 +57,17 @@ async def start(message: types.Message):
 @dp.message(lambda m: m.text in ["❓ Помощь", "❓ Help"])
 async def help_command(message: types.Message):
 
-    lang = user_lang.get(message.from_user.id, "ru")
-
-    if lang == "ru":
-
-        text = (
-            "❓ Помощь\n\n"
-            "📥 Отправьте ссылку чтобы скачать видео.\n"
-            "🎵 Можно скачать только аудио.\n"
-            "🎧 Можно искать музыку по названию.\n\n"
-
-            "⚠️ Видео может не скачаться если:\n"
-            "• видео приватное\n"
-            "• аккаунт закрыт\n"
-            "• ссылка неправильная\n"
-            "• видео удалено\n"
-            "• видео слишком длинное\n"
-            "• медленный интернет"
-        )
-
-    else:
-
-        text = (
-            "❓ Help\n\n"
-            "📥 Send a link to download video\n"
-            "🎵 You can download audio\n"
-            "🎧 You can search music\n\n"
-
-            "⚠️ Download may fail if:\n"
-            "• video is private\n"
-            "• account is private\n"
-            "• wrong link\n"
-            "• video deleted\n"
-            "• video too long\n"
-            "• slow internet"
-        )
+    text = (
+        "❓ Помощь\n\n"
+        "Просто отправьте ссылку на видео, и бот попробует скачать его.\n\n"
+        "Видео может не скачаться если:\n"
+        "• видео приватное\n"
+        "• аккаунт закрытый\n"
+        "• ссылка неправильная\n"
+        "• видео удалено\n"
+        "• видео слишком длинное\n"
+        "• медленный интернет"
+    )
 
     await message.answer(text)
 
@@ -114,130 +85,93 @@ async def language(message: types.Message):
 
     await message.answer("Выберите язык / Choose language", reply_markup=kb)
 
-# выбор языка
+# смена языка
 @dp.message(lambda m: m.text in ["Русский", "English"])
 async def set_lang(message: types.Message):
 
     if message.text == "Русский":
 
         user_lang[message.from_user.id] = "ru"
-        await message.answer("Язык изменён", reply_markup=menu_ru())
+
+        await message.answer(
+            "Язык изменён.",
+            reply_markup=menu_ru()
+        )
 
     else:
 
         user_lang[message.from_user.id] = "en"
-        await message.answer("Language changed", reply_markup=menu_en())
 
-# скачать видео
-@dp.message(lambda m: m.text in ["📥 Скачать видео", "📥 Download video"])
-async def video_mode(message: types.Message):
+        await message.answer(
+            "Language changed.",
+            reply_markup=menu_en()
+        )
 
-    mode[message.from_user.id] = "video"
+# обработка ссылок
+import requests
 
-    if user_lang.get(message.from_user.id) == "en":
-        await message.answer("Send video link.")
-    else:
-        await message.answer("Отправьте ссылку на видео.")
-
-# скачать аудио
-@dp.message(lambda m: m.text in ["🎵 Скачать аудио", "🎵 Download audio"])
-async def audio_mode(message: types.Message):
-
-    mode[message.from_user.id] = "audio"
-
-    if user_lang.get(message.from_user.id) == "en":
-        await message.answer("Send link.")
-    else:
-        await message.answer("Отправьте ссылку.")
-
-# поиск музыки
-@dp.message(lambda m: m.text in ["🎧 Найти музыку", "🎧 Find music"])
-async def music_mode(message: types.Message):
-
-    mode[message.from_user.id] = "music"
-
-    if user_lang.get(message.from_user.id) == "en":
-        await message.answer("Send music name.")
-    else:
-        await message.answer("Напишите название музыки.")
-
-# обработка сообщений
 @dp.message()
-async def handle(message: types.Message):
+async def download(message: types.Message):
 
-    user_mode = mode.get(message.from_user.id)
+    url = message.text
 
-    if user_mode == "music":
+    if "http" not in url:
+        return
 
-        query = f"ytsearch5:{message.text}"
+    status = await message.answer("⏳ Скачиваю...")
 
-        ydl_opts = {"quiet": True}
+    try:
 
-        try:
+        # TikTok без watermark
+        if "tiktok.com" in url:
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            api = f"https://www.tikwm.com/api/?url={url}"
 
-                info = ydl.extract_info(query, download=False)
+            r = requests.get(api).json()
 
-                text = "🎧 Найдено:\n\n"
+            video_url = r["data"]["play"]
 
-                for i, entry in enumerate(info["entries"], start=1):
+            video_data = requests.get(video_url).content
 
-                    text += f"{i}. {entry['title']}\n"
-                    text += f"{entry['webpage_url']}\n\n"
-
-                await message.answer(text)
-
-        except:
-
-            await message.answer("Ошибка поиска")
-
-    elif user_mode in ["video", "audio"]:
-
-        url = message.text
-
-        status = await message.answer("⏳ Скачиваю...")
-
-        if user_mode == "video":
-
-            ydl_opts = {
-                "format": "best",
-                "outtmpl": "video.%(ext)s",
-                "quiet": True
-            }
-
-        else:
-
-            ydl_opts = {
-                "format": "bestaudio",
-                "outtmpl": "audio.%(ext)s",
-                "quiet": True
-            }
-
-        try:
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-
-                info = ydl.extract_info(url, download=True)
-
-                file = ydl.prepare_filename(info)
+            with open("tiktok.mp4", "wb") as f:
+                f.write(video_data)
 
             await status.delete()
 
-            media = FSInputFile(file)
+            video = FSInputFile("tiktok.mp4")
 
-            if user_mode == "video":
-                await message.answer_video(media)
-            else:
-                await message.answer_audio(media)
+            await message.answer_video(video)
 
-            os.remove(file)
+            os.remove("tiktok.mp4")
 
-        except:
+            return
 
-            await status.delete()
+        # остальные платформы
+        opts = {
+            "format": "best",
+            "outtmpl": "video.%(ext)s",
+            "quiet": True
+        }
 
-            await message.answer("❌ Ошибка скачивания")
+        with yt_dlp.YoutubeDL(opts) as ydl:
+
+            info = ydl.extract_info(url, download=True)
+
+            file = ydl.prepare_filename(info)
+
+        await status.delete()
+
+        video = FSInputFile(file)
+
+        await message.answer_video(video)
+
+        os.remove(file)
+
+    except:
+
+        await status.delete()
+
+        await message.answer("❌ Не получилось скачать видео.")
 
 async def main():
     await dp.start_polling(bot)
