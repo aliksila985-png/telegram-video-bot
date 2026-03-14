@@ -1,159 +1,133 @@
-import asyncio
-import yt_dlp
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import Command
 import os
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+import yt_dlp
 
-BOT_TOKEN = os.getenv("8667187883:AAH_xGaY7UqiPjRn8At5T6Ijf2de1KafKLs").strip()
+# ==========================
+# Получаем токен из переменных среды
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+if BOT_TOKEN is None or BOT_TOKEN.strip() == "":
+    raise Exception("BOT_TOKEN not found in environment variables")
+BOT_TOKEN = BOT_TOKEN.strip()
+print("TOKEN LOADED:", BOT_TOKEN[:10])
 
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN not found")
-
+# ==========================
+# Инициализация бота
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-user_links = {}
-
-# Главное меню
-menu = types.ReplyKeyboardMarkup(
+# ==========================
+# Клавиатура
+kb = ReplyKeyboardMarkup(
     keyboard=[
-        [types.KeyboardButton(text="🔎 Поиск музыки")],
-        [types.KeyboardButton(text="❓ Помощь"), types.KeyboardButton(text="🌐 Язык")]
+        [KeyboardButton(text="Помощь"), KeyboardButton(text="Язык")],
     ],
     resize_keyboard=True
 )
 
-# Кнопки выбора
-download_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(text="📹 Скачать видео", callback_data="video"),
-            InlineKeyboardButton(text="🎵 Скачать аудио", callback_data="audio")
-        ]
-    ]
-)
-
-
-@dp.message(Command("start"))
+# ==========================
+# Старт команды
+@dp.message(Command(commands=["start"]))
 async def start(message: types.Message):
     await message.answer(
-        "Привет! 👋\n\n"
-        "Я бот, который скачивает видео и аудио из:\n"
-        "• YouTube\n"
-        "• YouTube Shorts\n"
-        "• TikTok\n"
-        "• Instagram\n\n"
-        "Просто отправь ссылку на видео.",
-        reply_markup=menu
+        "Привет! Этот бот позволяет скачивать видео и аудио с:\n"
+        "- YouTube (включая Shorts)\n"
+        "- TikTok\n"
+        "- Instagram\n"
+        "- Snapchat\n\n"
+        "Просто отправь ссылку на видео или название музыки, и бот предложит варианты.",
+        reply_markup=kb
     )
 
-
-@dp.message(lambda message: message.text == "❓ Помощь")
-async def help(message: types.Message):
+# ==========================
+# Помощь
+@dp.message(lambda m: m.text.lower() == "помощь")
+async def help_cmd(message: types.Message):
     await message.answer(
-        "Если видео не скачивается, возможны причины:\n\n"
-        "• видео слишком длинное\n"
-        "• приватное видео\n"
-        "• платформа временно блокирует скачивание\n"
-        "• проблемы с интернетом сервера\n\n"
-        "Просто отправьте ссылку снова."
+        "Возможные причины ошибок:\n"
+        "- Видео слишком длинное\n"
+        "- Платформа недоступна или ограничена\n"
+        "- Ошибка сети или таймаут\n"
+        "- Неверная ссылка\n\n"
+        "Попробуйте повторить или использовать VPN, если платформа заблокирована в вашей стране."
     )
 
+# ==========================
+# Изменение языка (пример)
+@dp.message(lambda m: m.text.lower() == "язык")
+async def language_cmd(message: types.Message):
+    await message.answer("Выберите язык / Choose language:\n1. Русский\n2. English")
 
-@dp.message(lambda message: message.text == "🌐 Язык")
-async def language(message: types.Message):
-    await message.answer("Скоро появится больше языков 🌍")
-
-
-# Поиск музыки
-@dp.message(lambda message: message.text == "🔎 Поиск музыки")
-async def music_search(message: types.Message):
-    await message.answer("Напишите название песни 🎵")
-
-
-def search_music(query):
+# ==========================
+# Вспомогательная функция для скачивания видео/аудио
+async def download_media(url, audio_only=False):
+    out_dir = "downloads"
+    os.makedirs(out_dir, exist_ok=True)
     ydl_opts = {
+        "format": "bestaudio/best" if audio_only else "best",
+        "outtmpl": f"{out_dir}/%(title)s.%(ext)s",
+        "noplaylist": True,
         "quiet": True,
-        "default_search": "ytsearch5"
     }
-
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        result = ydl.extract_info(query, download=False)
-        return result["entries"]
+        info = ydl.extract_info(url, download=True)
+        file_path = ydl.prepare_filename(info)
+    return file_path
 
-
+# ==========================
+# Обработка сообщений с ссылкой или названием музыки
 @dp.message()
 async def handle_message(message: types.Message):
-
-    text = message.text
-
-    if "http" in text:
-        user_links[message.from_user.id] = text
-
-        await message.answer(
-            "Что вы хотите скачать?",
-            reply_markup=download_keyboard
-        )
-        return
-
-    # поиск музыки
-    results = search_music(text)
-
-    response = "🎵 Найдено:\n\n"
-
-    for video in results:
-        response += f"{video['title']}\n{video['webpage_url']}\n\n"
-
-    await message.answer(response)
-
-
-@dp.callback_query()
-async def download(callback: types.CallbackQuery):
-
-    url = user_links.get(callback.from_user.id)
-
-    if not url:
-        await callback.message.answer("Ссылка не найдена")
-        return
-
-    wait = await callback.message.answer("⏳ Скачиваю...")
-
-    if callback.data == "video":
-        ydl_opts = {
-            "outtmpl": "video.%(ext)s"
-        }
-
-    else:
-        ydl_opts = {
-            "format": "bestaudio",
-            "outtmpl": "audio.%(ext)s"
-        }
-
-    try:
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        file = os.listdir()[0]
-
-        await callback.message.answer_document(types.FSInputFile(file))
-
-        os.remove(file)
-
-    except:
-        await callback.message.answer("❌ Ошибка скачивания")
-
-    await wait.delete()
-
-
-async def main():
-    print("Bot started")
-    await dp.start_polling(bot)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-    print("update")
+    text = message.text.strip()
     
+    # Если это ссылка на видео
+    if text.startswith("http"):
+        # Спросим, что скачать
+        keyboard = ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="Видео"), KeyboardButton(text="Аудио")],
+                [KeyboardButton(text="Отмена")]
+            ],
+            resize_keyboard=True
+        )
+        await message.answer("Что вы хотите скачать?", reply_markup=keyboard)
+        # Сохраняем url в пользовательский state
+        dp.data = {message.from_user.id: text}
+        return
+
+    # Если это музыка (по названию)
+    if len(text.split()) > 0:
+        # Используем yt_dlp поиск
+        search_url = f"ytsearch5:{text}"
+        try:
+            file_path = await download_media(search_url, audio_only=True)
+            await message.answer_document(open(file_path, "rb"))
+        except Exception as e:
+            await message.answer(f"Ошибка при поиске музыки: {e}")
+
+# ==========================
+# Обработка выбора "Видео" или "Аудио"
+@dp.message(lambda m: m.text in ["Видео", "Аудио"])
+async def handle_choice(message: types.Message):
+    url = dp.data.get(message.from_user.id)
+    if not url:
+        await message.answer("Ссылка не найдена. Отправьте ссылку ещё раз.")
+        return
+
+    audio_only = message.text == "Аудио"
+    await message.answer("Скачиваю, подождите...")
+    try:
+        file_path = await download_media(url, audio_only=audio_only)
+        await message.answer_document(open(file_path, "rb"))
+    except Exception as e:
+        await message.answer(f"Ошибка при скачивании: {e}")
+    finally:
+        # Очистим state пользователя
+        dp.data.pop(message.from_user.id, None)
+
+# ==========================
+# Запуск бота
+if __name__ == "__main__":
+    asyncio.run(dp.start_polling(bot))
