@@ -5,7 +5,10 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 import os
 
-BOT_TOKEN = os.getenv("8667187883:AAH_xGaY7UqiPjRn8At5T6Ijf2de1KafKLs")
+BOT_TOKEN = os.getenv("8667187883:AAH_xGaY7UqiPjRn8At5T6Ijf2de1KafKLs").strip()
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN not found")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -151,3 +154,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+    print("update")
+    
