@@ -1,180 +1,153 @@
 import asyncio
-import os
 import yt_dlp
-
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, FSInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+import os
 
-TOKEN = "8667187883:AAH_xGaY7UqiPjRn8At5T6Ijf2de1KafKLs"
+BOT_TOKEN = os.getenv("8667187883:AAH_xGaY7UqiPjRn8At5T6Ijf2de1KafKLs")
 
-bot = Bot(token=TOKEN)
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-user_lang = {}
+user_links = {}
 
-# меню RU
-def menu_ru():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="🌍 Язык")]
-        ],
-        resize_keyboard=True
-    )
+# Главное меню
+menu = types.ReplyKeyboardMarkup(
+    keyboard=[
+        [types.KeyboardButton(text="🔎 Поиск музыки")],
+        [types.KeyboardButton(text="❓ Помощь"), types.KeyboardButton(text="🌐 Язык")]
+    ],
+    resize_keyboard=True
+)
 
-# меню EN
-def menu_en():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="❓ Help"), KeyboardButton(text="🌍 Language")]
-        ],
-        resize_keyboard=True
-    )
+# Кнопки выбора
+download_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📹 Скачать видео", callback_data="video"),
+            InlineKeyboardButton(text="🎵 Скачать аудио", callback_data="audio")
+        ]
+    ]
+)
 
-# старт
-@dp.message(CommandStart())
+
+@dp.message(Command("start"))
 async def start(message: types.Message):
-
-    user_lang[message.from_user.id] = "ru"
-
-    text = (
-        "👋 Привет!\n\n"
-        "Я помогаю скачивать видео и аудио из популярных платформ.\n\n"
-        "Просто отправь ссылку, и я попробую скачать файл.\n\n"
-        "Работаю с такими сервисами как:\n"
-        "• YouTube (включая Shorts)\n"
+    await message.answer(
+        "Привет! 👋\n\n"
+        "Я бот, который скачивает видео и аудио из:\n"
+        "• YouTube\n"
+        "• YouTube Shorts\n"
         "• TikTok\n"
-        "• Instagram\n"
-        "• Twitter / X\n"
-        "• Snapchat\n"
-        "• Facebook\n\n"
-        "И многими другими платформами."
+        "• Instagram\n\n"
+        "Просто отправь ссылку на видео.",
+        reply_markup=menu
     )
 
-    await message.answer(text, reply_markup=menu_ru())
 
-# помощь
-@dp.message(lambda m: m.text in ["❓ Помощь", "❓ Help"])
-async def help_command(message: types.Message):
-
-    text = (
-        "❓ Помощь\n\n"
-        "Просто отправьте ссылку на видео, и бот попробует скачать его.\n\n"
-        "Видео может не скачаться если:\n"
-        "• видео приватное\n"
-        "• аккаунт закрытый\n"
-        "• ссылка неправильная\n"
-        "• видео удалено\n"
+@dp.message(lambda message: message.text == "❓ Помощь")
+async def help(message: types.Message):
+    await message.answer(
+        "Если видео не скачивается, возможны причины:\n\n"
         "• видео слишком длинное\n"
-        "• медленный интернет"
+        "• приватное видео\n"
+        "• платформа временно блокирует скачивание\n"
+        "• проблемы с интернетом сервера\n\n"
+        "Просто отправьте ссылку снова."
     )
 
-    await message.answer(text)
 
-# язык
-@dp.message(lambda m: m.text in ["🌍 Язык", "🌍 Language"])
+@dp.message(lambda message: message.text == "🌐 Язык")
 async def language(message: types.Message):
+    await message.answer("Скоро появится больше языков 🌍")
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Русский")],
-            [KeyboardButton(text="English")]
-        ],
-        resize_keyboard=True
-    )
 
-    await message.answer("Выберите язык / Choose language", reply_markup=kb)
+# Поиск музыки
+@dp.message(lambda message: message.text == "🔎 Поиск музыки")
+async def music_search(message: types.Message):
+    await message.answer("Напишите название песни 🎵")
 
-# смена языка
-@dp.message(lambda m: m.text in ["Русский", "English"])
-async def set_lang(message: types.Message):
 
-    if message.text == "Русский":
+def search_music(query):
+    ydl_opts = {
+        "quiet": True,
+        "default_search": "ytsearch5"
+    }
 
-        user_lang[message.from_user.id] = "ru"
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        result = ydl.extract_info(query, download=False)
+        return result["entries"]
 
-        await message.answer(
-            "Язык изменён.",
-            reply_markup=menu_ru()
-        )
-
-    else:
-
-        user_lang[message.from_user.id] = "en"
-
-        await message.answer(
-            "Language changed.",
-            reply_markup=menu_en()
-        )
-
-# обработка ссылок
-import requests
 
 @dp.message()
-async def download(message: types.Message):
+async def handle_message(message: types.Message):
 
-    url = message.text
+    text = message.text
 
-    if "http" not in url:
+    if "http" in text:
+        user_links[message.from_user.id] = text
+
+        await message.answer(
+            "Что вы хотите скачать?",
+            reply_markup=download_keyboard
+        )
         return
 
-    status = await message.answer("⏳ Скачиваю...")
+    # поиск музыки
+    results = search_music(text)
+
+    response = "🎵 Найдено:\n\n"
+
+    for video in results:
+        response += f"{video['title']}\n{video['webpage_url']}\n\n"
+
+    await message.answer(response)
+
+
+@dp.callback_query()
+async def download(callback: types.CallbackQuery):
+
+    url = user_links.get(callback.from_user.id)
+
+    if not url:
+        await callback.message.answer("Ссылка не найдена")
+        return
+
+    wait = await callback.message.answer("⏳ Скачиваю...")
+
+    if callback.data == "video":
+        ydl_opts = {
+            "outtmpl": "video.%(ext)s"
+        }
+
+    else:
+        ydl_opts = {
+            "format": "bestaudio",
+            "outtmpl": "audio.%(ext)s"
+        }
 
     try:
 
-        # TikTok без watermark
-        if "tiktok.com" in url:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
 
-            api = f"https://www.tikwm.com/api/?url={url}"
+        file = os.listdir()[0]
 
-            r = requests.get(api).json()
-
-            video_url = r["data"]["play"]
-
-            video_data = requests.get(video_url).content
-
-            with open("tiktok.mp4", "wb") as f:
-                f.write(video_data)
-
-            await status.delete()
-
-            video = FSInputFile("tiktok.mp4")
-
-            await message.answer_video(video)
-
-            os.remove("tiktok.mp4")
-
-            return
-
-        # остальные платформы
-        opts = {
-            "format": "best",
-            "outtmpl": "video.%(ext)s",
-            "quiet": True
-        }
-
-        with yt_dlp.YoutubeDL(opts) as ydl:
-
-            info = ydl.extract_info(url, download=True)
-
-            file = ydl.prepare_filename(info)
-
-        await status.delete()
-
-        video = FSInputFile(file)
-
-        await message.answer_video(video)
+        await callback.message.answer_document(types.FSInputFile(file))
 
         os.remove(file)
 
     except:
+        await callback.message.answer("❌ Ошибка скачивания")
 
-        await status.delete()
+    await wait.delete()
 
-        await message.answer("❌ Не получилось скачать видео.")
 
 async def main():
+    print("Bot started")
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
