@@ -15,6 +15,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 user_links = {}
+search_results = {}
 
 # =========================
 # клавиатуры
@@ -34,6 +35,15 @@ choice_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+music_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="1️⃣"), KeyboardButton(text="2️⃣"), KeyboardButton(text="3️⃣")],
+        [KeyboardButton(text="4️⃣"), KeyboardButton(text="5️⃣")],
+        [KeyboardButton(text="❌ Отмена")]
+    ],
+    resize_keyboard=True
+)
+
 # =========================
 # START
 
@@ -48,7 +58,7 @@ async def start(message: types.Message):
         "• Instagram\n"
         "• Snapchat\n\n"
         "Отправь ссылку на видео\n"
-        "или напиши название музыки."
+        "или напиши название песни."
     )
 
     await message.answer(text, reply_markup=main_kb)
@@ -64,8 +74,7 @@ async def help_cmd(message: types.Message):
         "• видео слишком длинное\n"
         "• приватный пост\n"
         "• ошибка сети\n"
-        "• сайт временно ограничил доступ\n\n"
-        "Попробуйте другую ссылку."
+        "• сайт ограничил доступ\n"
     )
 
     await message.answer(text)
@@ -76,10 +85,7 @@ async def help_cmd(message: types.Message):
 @dp.message(lambda m: m.text == "🌐 Язык")
 async def lang(message: types.Message):
 
-    await message.answer(
-        "Language feature coming soon 🌐\n"
-        "Скоро будет выбор языка."
-    )
+    await message.answer("Скоро будет выбор языка.")
 
 # =========================
 # если отправили ссылку
@@ -95,7 +101,7 @@ async def get_link(message: types.Message):
     )
 
 # =========================
-# функция скачивания
+# скачивание
 
 def download_media(url, audio=False):
 
@@ -114,9 +120,9 @@ def download_media(url, audio=False):
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        file = ydl.prepare_filename(info)
+        file_path = ydl.prepare_filename(info)
 
-    return file
+    return file_path
 
 # =========================
 # скачать видео
@@ -171,18 +177,10 @@ async def send_audio(message: types.Message):
     await msg.delete()
 
 # =========================
-# отмена
-
-@dp.message(lambda m: m.text == "❌ Отмена")
-async def cancel(message: types.Message):
-
-    await message.answer("Отменено.", reply_markup=main_kb)
-
-# =========================
 # поиск музыки
 
-@dp.message()
-async def music_search(message: types.Message):
+@dp.message(lambda m: m.text not in ["❓ Помощь","🌐 Язык","📥 Видео","🎵 Аудио","❌ Отмена","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣"])
+async def search_music(message: types.Message):
 
     query = message.text
 
@@ -190,17 +188,65 @@ async def music_search(message: types.Message):
 
     try:
 
-        search = f"ytsearch:{query}"
+        with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
 
-        file = download_media(search, audio=True)
+            info = ydl.extract_info(f"ytsearch5:{query}", download=False)
+
+            results = info["entries"]
+
+        search_results[message.from_user.id] = results
+
+        text = "Нашёл варианты:\n\n"
+
+        for i, video in enumerate(results):
+
+            text += f"{i+1}. {video['title']}\n"
+
+        await message.answer(text, reply_markup=music_kb)
+
+    except Exception as e:
+
+        await message.answer(f"Ошибка поиска: {e}")
+
+    await msg.delete()
+
+# =========================
+# выбор песни
+
+@dp.message(lambda m: m.text in ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣"])
+async def choose_music(message: types.Message):
+
+    index = int(message.text[0]) - 1
+
+    results = search_results.get(message.from_user.id)
+
+    if not results:
+        await message.answer("Сначала напиши название песни.")
+        return
+
+    url = results[index]["webpage_url"]
+
+    msg = await message.answer("⏳ Скачиваю музыку...")
+
+    try:
+
+        file = download_media(url, audio=True)
 
         await message.answer_audio(FSInputFile(file))
 
-    except:
+    except Exception as e:
 
-        await message.answer("Не удалось найти музыку.")
+        await message.answer(f"Ошибка: {e}")
 
     await msg.delete()
+
+# =========================
+# отмена
+
+@dp.message(lambda m: m.text == "❌ Отмена")
+async def cancel(message: types.Message):
+
+    await message.answer("Отменено.", reply_markup=main_kb)
 
 # =========================
 # запуск
