@@ -16,7 +16,6 @@ dp = Dispatcher()
 
 user_links = {}
 music_results = {}
-user_lang = {}
 
 # ======================
 # КЛАВИАТУРЫ
@@ -36,23 +35,14 @@ choice_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-lang_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🇷🇺 Русский"), KeyboardButton(text="🇬🇧 English")],
-        [KeyboardButton(text="⬅️ Назад")]
-    ],
-    resize_keyboard=True
-)
-
 # ======================
 # START
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-
     await message.answer(
         "Привет 👋\n\n"
-        "Отправь ссылку на видео или название песни.",
+        "Отправь ссылку или название песни.",
         reply_markup=main_kb
     )
 
@@ -61,50 +51,7 @@ async def start(message: types.Message):
 
 @dp.message(lambda m: m.text == "❓ Помощь")
 async def help_cmd(message: types.Message):
-
-    await message.answer(
-        "Отправь ссылку на видео\n"
-        "или напиши название песни."
-    )
-
-# ======================
-# ЯЗЫК
-
-@dp.message(lambda m: m.text == "🌐 Язык")
-async def lang(message: types.Message):
-
-    await message.answer(
-        "Выбери язык:",
-        reply_markup=lang_kb
-    )
-
-@dp.message(lambda m: m.text == "🇷🇺 Русский")
-async def ru_lang(message: types.Message):
-
-    user_lang[message.from_user.id] = "ru"
-
-    await message.answer(
-        "Язык установлен: Русский",
-        reply_markup=main_kb
-    )
-
-@dp.message(lambda m: m.text == "🇬🇧 English")
-async def en_lang(message: types.Message):
-
-    user_lang[message.from_user.id] = "en"
-
-    await message.answer(
-        "Language set: English",
-        reply_markup=main_kb
-    )
-
-@dp.message(lambda m: m.text == "⬅️ Назад")
-async def back(message: types.Message):
-
-    await message.answer(
-        "Главное меню",
-        reply_markup=main_kb
-    )
+    await message.answer("Отправь ссылку или название песни.")
 
 # ======================
 # ССЫЛКА
@@ -114,13 +61,10 @@ async def link(message: types.Message):
 
     user_links[message.from_user.id] = message.text
 
-    await message.answer(
-        "Что скачать?",
-        reply_markup=choice_kb
-    )
+    await message.answer("Что скачать?", reply_markup=choice_kb)
 
 # ======================
-# СКАЧИВАНИЕ
+# СКАЧИВАНИЕ (ФИКС С ANDROID)
 
 def download(url, audio=False):
 
@@ -130,6 +74,14 @@ def download(url, audio=False):
         "outtmpl": "downloads/%(title)s.%(ext)s",
         "quiet": True,
         "noplaylist": True,
+
+        # 🔥 ВАЖНЫЙ ФИКС
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android"]
+            }
+        },
+
         "nocheckcertificate": True,
         "geo_bypass": True,
     }
@@ -162,16 +114,12 @@ async def video(message: types.Message):
         await message.answer("Сначала отправь ссылку")
         return
 
-    msg = await message.answer("Скачиваю видео...")
+    msg = await message.answer("⏳ Скачиваю видео...")
 
     try:
-
         file = download(url)
-
         await message.answer_video(FSInputFile(file))
-
     except Exception as e:
-
         await message.answer(f"Ошибка: {e}")
 
     await msg.delete()
@@ -188,16 +136,12 @@ async def audio(message: types.Message):
         await message.answer("Сначала отправь ссылку")
         return
 
-    msg = await message.answer("Скачиваю аудио...")
+    msg = await message.answer("⏳ Скачиваю аудио...")
 
     try:
-
         file = download(url, True)
-
         await message.answer_audio(FSInputFile(file))
-
     except Exception as e:
-
         await message.answer(f"Ошибка: {e}")
 
     await msg.delete()
@@ -207,11 +151,7 @@ async def audio(message: types.Message):
 
 @dp.message(lambda m: m.text == "❌ Отмена")
 async def cancel(message: types.Message):
-
-    await message.answer(
-        "Отменено",
-        reply_markup=main_kb
-    )
+    await message.answer("Отменено", reply_markup=main_kb)
 
 # ======================
 # ПОИСК МУЗЫКИ
@@ -220,8 +160,7 @@ async def cancel(message: types.Message):
 async def search(message: types.Message):
 
     query = message.text
-
-    msg = await message.answer("Ищу песни...")
+    msg = await message.answer("🔎 Ищу песни...")
 
     try:
 
@@ -230,29 +169,32 @@ async def search(message: types.Message):
         opts = {
             "quiet": True,
             "nocheckcertificate": True,
-            "geo_bypass": True
+            "geo_bypass": True,
+
+            # 🔥 тот же фикс
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android"]
+                }
+            },
         }
 
         with yt_dlp.YoutubeDL(opts) as ydl:
-
             info = ydl.extract_info(url, download=False)
 
         songs = info["entries"][:5]
-
         music_results[message.from_user.id] = songs
 
-        text = "Найденные песни:\n\n"
+        text = "🎵 Найдено:\n\n"
 
         for i, song in enumerate(songs, 1):
-
             text += f"{i}. {song['title']}\n"
 
-        text += "\nНапиши номер 1-5"
+        text += "\nНапиши 1-5"
 
         await message.answer(text)
 
     except Exception as e:
-
         await message.answer(f"Ошибка поиска: {e}")
 
     await msg.delete()
@@ -270,19 +212,14 @@ async def choose(message: types.Message):
 
     index = int(message.text) - 1
 
-    msg = await message.answer("Скачиваю песню...")
+    msg = await message.answer("⏳ Скачиваю...")
 
     try:
-
         url = songs[index]["webpage_url"]
-
         file = download(url, True)
-
         await message.answer_audio(FSInputFile(file))
-
     except:
-
-        await message.answer("Не удалось скачать")
+        await message.answer("❌ Ошибка скачивания")
 
     await msg.delete()
 
