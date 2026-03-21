@@ -8,9 +8,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, FSInputFile
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-if not BOT_TOKEN:
-    raise Exception("BOT_TOKEN not found")
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -18,50 +15,65 @@ user_links = {}
 music_results = {}
 user_lang = {}
 
-# ======================
-# ЯЗЫКИ
+# =======================
+# ТЕКСТЫ
 
 TEXTS = {
     "ru": {
-        "start": "Привет 👋\n\nОтправь ссылку или название песни.",
-        "help": "📌 Как пользоваться:\n\n1. Отправь ссылку\n2. Выбери видео или аудио\n\nИли просто напиши название песни.",
+        "start": "👋 Привет!\n\n"
+                 "Я могу:\n"
+                 "• Скачать видео или аудио с YouTube, TikTok, Instagram\n"
+                 "• Найти песню по названию\n\n"
+                 "📌 Просто отправь ссылку или напиши название песни.",
+        "help": "📌 Как пользоваться:\n\n"
+                "1. Отправь ссылку → выбери видео или аудио\n"
+                "2. Напиши название песни → выбери номер\n\n"
+                "Поддерживаются:\nYouTube, TikTok, Instagram",
         "choose": "Что скачать?",
         "no_link": "Сначала отправь ссылку",
-        "down_video": "⏳ Скачиваю видео...",
-        "down_audio": "⏳ Скачиваю аудио...",
+        "video": "⏳ Скачиваю видео...",
+        "audio": "⏳ Скачиваю аудио...",
         "search": "🔎 Ищу песни...",
         "choose_num": "Напиши номер 1-5",
-        "error": "❌ Ошибка. Попробуй другую ссылку или песню.",
-        "cancel": "Отменено",
-        "lang_set": "Язык установлен: Русский"
+        "error": "❌ Ошибка. Попробуй другую ссылку или песню",
+        "lang": "Язык установлен: Русский"
     },
     "en": {
-        "start": "Hi 👋\n\nSend a link or song name.",
-        "help": "📌 How to use:\n\n1. Send link\n2. Choose video or audio\n\nOr type a song name.",
+        "start": "👋 Hi!\n\n"
+                 "I can:\n"
+                 "• Download video/audio from YouTube, TikTok, Instagram\n"
+                 "• Find songs by name\n\n"
+                 "📌 Send a link or type a song name.",
+        "help": "📌 How to use:\n\n"
+                "1. Send a link → choose video or audio\n"
+                "2. Type song name → choose number",
         "choose": "What to download?",
-        "no_link": "Send a link first",
-        "down_video": "⏳ Downloading video...",
-        "down_audio": "⏳ Downloading audio...",
+        "no_link": "Send link first",
+        "video": "⏳ Downloading video...",
+        "audio": "⏳ Downloading audio...",
         "search": "🔎 Searching songs...",
         "choose_num": "Type number 1-5",
-        "error": "❌ Error. Try another link or song.",
-        "cancel": "Cancelled",
-        "lang_set": "Language set: English"
+        "error": "❌ Error. Try another link or song",
+        "lang": "Language set: English"
     }
 }
 
-def t(user_id, key):
-    lang = user_lang.get(user_id, "ru")
-    return TEXTS[lang][key]
+def t(uid, key):
+    return TEXTS[user_lang.get(uid, "ru")][key]
 
-# ======================
+# =======================
 # КНОПКИ
 
 main_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📥 Видео"), KeyboardButton(text="🎵 Аудио")],
-        [KeyboardButton(text="🔎 Поиск"), KeyboardButton(text="❓ Помощь")],
-        [KeyboardButton(text="🌐 Язык")]
+        [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="🌐 Язык")]
+    ],
+    resize_keyboard=True
+)
+
+choice_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="📥 Видео"), KeyboardButton(text="🎵 Аудио")]
     ],
     resize_keyboard=True
 )
@@ -73,21 +85,21 @@ lang_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ======================
+# =======================
 # START
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
     await message.answer(t(message.from_user.id, "start"), reply_markup=main_kb)
 
-# ======================
+# =======================
 # HELP
 
 @dp.message(lambda m: m.text == "❓ Помощь")
 async def help_cmd(message: types.Message):
     await message.answer(t(message.from_user.id, "help"))
 
-# ======================
+# =======================
 # LANGUAGE
 
 @dp.message(lambda m: m.text == "🌐 Язык")
@@ -97,22 +109,27 @@ async def lang(message: types.Message):
 @dp.message(lambda m: m.text == "🇷🇺 Русский")
 async def ru(message: types.Message):
     user_lang[message.from_user.id] = "ru"
-    await message.answer(TEXTS["ru"]["lang_set"], reply_markup=main_kb)
+    await message.answer(TEXTS["ru"]["lang"], reply_markup=main_kb)
 
 @dp.message(lambda m: m.text == "🇬🇧 English")
 async def en(message: types.Message):
     user_lang[message.from_user.id] = "en"
-    await message.answer(TEXTS["en"]["lang_set"], reply_markup=main_kb)
+    await message.answer(TEXTS["en"]["lang"], reply_markup=main_kb)
 
-# ======================
+# =======================
 # ССЫЛКА
 
 @dp.message(lambda m: m.text and "http" in m.text)
 async def link(message: types.Message):
-    user_links[message.from_user.id] = message.text
-    await message.answer(t(message.from_user.id, "choose"))
 
-# ======================
+    user_links[message.from_user.id] = message.text
+
+    await message.answer(
+        t(message.from_user.id, "choose"),
+        reply_markup=choice_kb
+    )
+
+# =======================
 # СКАЧИВАНИЕ
 
 def download(url, audio=False):
@@ -140,7 +157,7 @@ def download(url, audio=False):
 
         return ydl.prepare_filename(info)
 
-# ======================
+# =======================
 # ВИДЕО
 
 @dp.message(lambda m: m.text == "📥 Видео")
@@ -152,7 +169,7 @@ async def video(message: types.Message):
         await message.answer(t(message.from_user.id, "no_link"))
         return
 
-    msg = await message.answer(t(message.from_user.id, "down_video"))
+    msg = await message.answer(t(message.from_user.id, "video"))
 
     try:
         file = download(url)
@@ -162,7 +179,7 @@ async def video(message: types.Message):
 
     await msg.delete()
 
-# ======================
+# =======================
 # АУДИО
 
 @dp.message(lambda m: m.text == "🎵 Аудио")
@@ -174,7 +191,7 @@ async def audio(message: types.Message):
         await message.answer(t(message.from_user.id, "no_link"))
         return
 
-    msg = await message.answer(t(message.from_user.id, "down_audio"))
+    msg = await message.answer(t(message.from_user.id, "audio"))
 
     try:
         file = download(url, True)
@@ -184,17 +201,16 @@ async def audio(message: types.Message):
 
     await msg.delete()
 
-# ======================
-# ПОИСК
+# =======================
+# ПОИСК МУЗЫКИ
 
-@dp.message(lambda m: m.text and "http" not in m.text)
+@dp.message(lambda m: m.text and "http" not in m.text and m.text not in ["1","2","3","4","5"])
 async def search(message: types.Message):
 
-    query = message.text
     msg = await message.answer(t(message.from_user.id, "search"))
 
     try:
-        url = f"ytsearch5:{query} music"
+        url = f"ytsearch5:{message.text} music"
 
         with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -215,8 +231,8 @@ async def search(message: types.Message):
 
     await msg.delete()
 
-# ======================
-# ВЫБОР
+# =======================
+# ВЫБОР ПЕСНИ
 
 @dp.message(lambda m: m.text in ["1","2","3","4","5"])
 async def choose(message: types.Message):
@@ -228,9 +244,9 @@ async def choose(message: types.Message):
 
     msg = await message.answer("⏳...")
 
-    for song in songs:
+    for s in songs:
         try:
-            file = download(song["webpage_url"], True)
+            file = download(s["webpage_url"], True)
             await message.answer_audio(FSInputFile(file))
             await msg.delete()
             return
@@ -240,8 +256,7 @@ async def choose(message: types.Message):
     await message.answer(t(message.from_user.id, "error"))
     await msg.delete()
 
-# ======================
-# RUN
+# =======================
 
 async def main():
     await dp.start_polling(bot)
